@@ -5,7 +5,7 @@
 | 路径 | 内容 |
 | --- | --- |
 | `src/` | Java 实验代码及验证工具。 |
-| `smoke-project/` | 用于验证 Go 编译、运行和调试的示例项目。 |
+| `scripts/configure-exe.ps1` | GoLand 本地启动配置和恢复实现。 |
 | `scripts/restore-exe.cmd` | 恢复当前 Windows 用户的 GoLand 启动设置。 |
 | `README.txt` | 原有实验记录。 |
 

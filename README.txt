@@ -4,18 +4,9 @@ GoLand 2026.3 本地授权状态实验
 安装位置：C:\Program Files\JetBrains\GoLand 2026.3
 
 使用入口
-  scripts\install-for-exe.cmd：以管理员身份执行一次性安装；以后直接打开原 goland64.exe 或快捷方式。
   scripts\restore-exe.cmd：恢复上述安装之前的用户启动配置。
-  scripts\repair-startup.cmd：复核 Agent 加载并重建当前用户的 EXE 启动配置。
-  scripts\launch.cmd：启动使用独立配置的 GoLand。
-  scripts\test-ide.cmd：打开随附 smoke-project，便于复测运行、断点和单步调试。
-  scripts\verify-toolchain.cmd：自动验证独立 Go 编译器和 IDE 随附 Delve 调试器。
-  scripts\build.ps1：重新编译 Agent 并验证类指纹和转换结果。
 
 直接 EXE 模式
-  执行 scripts\install-for-exe.cmd 后，先保存工作并完全退出已有 GoLand 进程，
-  再打开 C:\Program Files\JetBrains\GoLand 2026.3\bin\goland64.exe。
-  无需每次经过 scripts\launch.cmd。旧终端等启动器可能需要重开以更新环境。
   Agent 存放于 C:\Program Files\JetBrains\GoLand 2026.3\local-agent，
   启动配置和恢复记录存放于 %USERPROFILE%\.goland-state-lab\263.7307.211，
   不再依赖下载文件夹的位置。配置使用原用户的项目和设置，不使用 sandbox。
@@ -23,19 +14,14 @@ GoLand 2026.3 本地授权状态实验
   goland64.exe.vmoptions 作为回退；不会修改 GoLand EXE 或系统级环境变量。
   所有用户范围的旧配置保持原样，当前用户的新配置优先。
   安装器核对实际落盘路径，避免 MSIX 宿主把 AppData 重定向到私有目录。
-  从旧版升级时会迁移原始恢复记录；直接重新运行安装或修复入口即可。
+  历史版本升级时会迁移原始恢复记录。
   写入安装目录需要管理员权限。请使用当前 Windows 账号的管理员提升执行，
   不要切换为另一个管理员账号，否则用户配置会写到另一个账号下。
   无权限或组件检查失败时，脚本停止，现有启动配置保持原样。
   安装目录中的 local-agent 是新增的独立子目录；原始 EXE/JAR 不改写。
   旧用户目录中的 Agent 保留，供尚未退出的旧进程使用。
-  卸载或更换 IDE 安装目录后需重新运行安装脚本；恢复入口只还原用户配置，
+  恢复入口只还原用户配置，
   不删除安装目录中的共享 Agent 文件。
-
-独立实验启动器（scripts\launch.cmd/scripts\test-ide.cmd）只为新进程设置 GOLAND_VM_OPTIONS，配置、插件、索引和日志放在 sandbox。
-不会修改安装目录或系统持久环境变量，也不加载原 ja-netfilter.jar 或激活码文件。
-已经启动的普通 GoLand 实例不会应用本实验；请从上述入口启动实验实例。
-同一实验实例仍在运行时，启动器会拒绝重复启动，避免覆盖日志或占用配置目录。
 
 机制
   对两个原始类核对 SHA-256 后，在内存中修改本地授权可用性判断，
@@ -95,7 +81,5 @@ Revision 4 / 5：倒计时标题与窗口过期状态
   上述短时工作流没有发现新的授权拦截，不代表未来任何时间、任何功能都无限制。
   没有验证跨系统重启、超过订阅/构建期限、长时间运行、升级及所有第三方插件。
   AI、云端服务等仍需要服务端认可的订阅和账号权益，本实验不会提供这些权益。
-  scripts\verify-toolchain.cmd 验证独立工具链；IDE 界面测试结果单独记录，不能混同。
 
 若已安装直接 EXE 模式，执行 scripts\restore-exe.cmd 后重启 GoLand，恢复安装前的启动方式。
-未安装直接 EXE 模式时，退出独立实验实例后继续使用原快捷方式即可。
