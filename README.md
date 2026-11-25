@@ -3,7 +3,7 @@
 ## 恢复 GoLand 的原有启动设置
 
 1. 使用原来运行配置脚本的 Windows 账号，保存工作并退出 GoLand。
-2. 在项目目录运行 `restore-exe.cmd`。
+2. 在项目目录运行 `scripts/restore-exe.cmd`。
 3. 看到 `Original current-user GoLand configuration restored` 后，从原有快捷方式重新启动 GoLand。
 4. 如需激活 GoLand，在 IDE 中打开许可证管理界面，使用有效的 JetBrains 许可证登录或激活。
 

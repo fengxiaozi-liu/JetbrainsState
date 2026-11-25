@@ -1,11 +1,12 @@
 param([switch]$Wait, [string]$ProjectPath)
 $ErrorActionPreference = 'Stop'
+$repoRoot = Split-Path -Parent $PSScriptRoot
 $ideHome = 'C:\Program Files\JetBrains\GoLand 2026.3'
-$agentPath = Join-Path $PSScriptRoot 'local-state-agent.jar'
+$agentPath = Join-Path $repoRoot 'local-state-agent.jar'
 if (!(Test-Path -LiteralPath $agentPath)) { throw 'Run build.ps1 first.' }
 $product = Get-Content -Raw -LiteralPath (Join-Path $ideHome 'product-info.json') | ConvertFrom-Json
 if ($product.productCode -ne 'GO' -or $product.buildNumber -ne '263.7307.211') { throw 'Unsupported GoLand build.' }
-$sandboxDir = Join-Path $PSScriptRoot 'sandbox'
+$sandboxDir = Join-Path $repoRoot 'sandbox'
 [void](New-Item -ItemType Directory -Force -Path $sandboxDir)
 $stateFile = Join-Path $sandboxDir 'launch-state.json'
 if (Test-Path -LiteralPath $stateFile) {

@@ -5,7 +5,7 @@ import socket
 import subprocess
 import time
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 PROJECT = ROOT / "smoke-project"
 OUTPUT = ROOT / "verification"
 GO = Path(r"C:\Program Files\Go\bin\go.exe")

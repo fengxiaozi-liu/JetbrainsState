@@ -1,5 +1,6 @@
 param([ValidateSet('Install','Restore')][string]$Mode = 'Install')
 $ErrorActionPreference = 'Stop'
+$repoRoot = Split-Path -Parent $PSScriptRoot
 $build = '263.7307.211'
 $ideHome = 'C:\Program Files\JetBrains\GoLand 2026.3'
 # AppData created by a packaged host can be redirected into that host's
@@ -161,7 +162,7 @@ if ($Mode -eq 'Restore') {
 
 $product = Get-Content -Raw -LiteralPath (Join-Path $ideHome 'product-info.json') | ConvertFrom-Json
 if ($product.productCode -ne 'GO' -or $product.buildNumber -ne $build) { throw "Only GoLand GO-$build is supported." }
-$sourceAgent = Join-Path $PSScriptRoot 'local-state-agent.jar'
+$sourceAgent = Join-Path $repoRoot 'local-state-agent.jar'
 if ((Get-FileHash -Algorithm SHA256 -LiteralPath $sourceAgent).Hash -ne $expectedAgentHash) {
     throw 'Agent file fingerprint is different from the verified version.'
 }

@@ -6,7 +6,7 @@
 | --- | --- |
 | `src/` | Java 实验代码及验证工具。 |
 | `smoke-project/` | 用于验证 Go 编译、运行和调试的示例项目。 |
-| `restore-exe.cmd` | 恢复当前 Windows 用户的 GoLand 启动设置。 |
+| `scripts/restore-exe.cmd` | 恢复当前 Windows 用户的 GoLand 启动设置。 |
 | `README.txt` | 原有实验记录。 |
 
 `build/` 和 `dist/` 用于保存本地构建产物。`sandbox/`、`exe-check/` 和 `verification/` 中的运行状态、日志和验证结果保存在本地。

@@ -1,18 +1,19 @@
 $ErrorActionPreference = 'Stop'
+$repoRoot = Split-Path -Parent $PSScriptRoot
 $runtimeDir = 'C:\Program Files\JetBrains\GoLand 2026.3\jbr\bin'
 $ideLib = 'C:\Program Files\JetBrains\GoLand 2026.3\lib'
-$classesDir = Join-Path $PSScriptRoot 'build\classes'
-$patchedDir = Join-Path $PSScriptRoot 'build\verified'
+$classesDir = Join-Path $repoRoot 'build\classes'
+$patchedDir = Join-Path $repoRoot 'build\verified'
 [void](New-Item -ItemType Directory -Force -Path $classesDir)
 $asmJar = Join-Path $ideLib 'intellij.libraries.asm.jar'
-& (Join-Path $runtimeDir 'javac.exe') -encoding UTF-8 -cp $asmJar -d $classesDir (Join-Path $PSScriptRoot 'src\LocalStateAgent.java') (Join-Path $PSScriptRoot 'src\VerifyTransform.java')
+& (Join-Path $runtimeDir 'javac.exe') -encoding UTF-8 -cp $asmJar -d $classesDir (Join-Path $repoRoot 'src\LocalStateAgent.java') (Join-Path $repoRoot 'src\VerifyTransform.java')
 if ($LASTEXITCODE -ne 0) { throw 'Compilation failed.' }
 & (Join-Path $runtimeDir 'java.exe') -cp "$classesDir;$asmJar" VerifyTransform (Join-Path $ideLib 'intellij.platform.cs.jar') $patchedDir (Join-Path $ideLib 'intellij.platform.ide.impl.jar')
 if ($LASTEXITCODE -ne 0) { throw 'Transformation verification failed.' }
 # Package only the agent, using ZIP APIs; no dependency on the bundled cracking JAR.
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$jarPath = Join-Path $PSScriptRoot 'local-state-agent.jar'
+$jarPath = Join-Path $repoRoot 'local-state-agent.jar'
 $stream = [IO.File]::Open($jarPath, [IO.FileMode]::Create)
 $archive = [IO.Compression.ZipArchive]::new($stream, [IO.Compression.ZipArchiveMode]::Create)
 try {
