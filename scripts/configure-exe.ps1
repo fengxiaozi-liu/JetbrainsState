@@ -1,19 +1,28 @@
-param([ValidateSet('Install','Restore')][string]$Mode = 'Install')
+param(
+    [ValidateSet('GoLand','PyCharm')][string]$Product = 'GoLand',
+    [ValidateSet('Install','Restore','Check')][string]$Mode = 'Install'
+)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$build = '263.7307.211'
-$ideHome = 'C:\Program Files\JetBrains\GoLand 2026.3'
-# AppData created by a packaged host can be redirected into that host's
-# private LocalCache. Explorer-launched programs cannot see those files.
-$legacyHome = Join-Path $env:LOCALAPPDATA "GoLandStateLab\$build"
-$managedHome = Join-Path $env:USERPROFILE ".goland-state-lab\$build"
-$managedOptions = Join-Path $managedHome 'goland.vmoptions'
-$expectedAgentHash = '52DCFDD6ED15A6F6EA1D46D993901562FEF0F32AC1BF5D187298E2B0E0DF65D3'
-# Keep the previous binary available to an IDE that is still running.
+$profiles = Import-PowerShellDataFile (Join-Path $PSScriptRoot 'products.psd1')
+$productProfile = $profiles[$Product]
+$build = $productProfile.Build
+$ideHome = $productProfile.IdeHome
+$environmentName = $productProfile.EnvironmentName
+$profileId = $productProfile.Code + '-' + $build
+# Keep product-specific user options and rollback records independent.
+$legacyHome = Join-Path $env:LOCALAPPDATA ($productProfile.LegacyFolder + '\' + $build)
+$managedHome = Join-Path $env:USERPROFILE ($productProfile.StateFolder + '\' + $build)
+$managedOptions = Join-Path $managedHome $productProfile.OptionsName
+$expectedAgentHash = ''
+if ($Mode -ne 'Restore') {
+    $expectedAgentHash = (Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'agent.sha256')).Trim()
+    if ($expectedAgentHash -cnotmatch '^[A-F0-9]{64}$') { throw 'Invalid agent.sha256. Run scripts/build-agent.ps1.' }
+}
 $agentHome = Join-Path $ideHome 'local-agent'
-$managedAgent = Join-Path $agentHome ("local-state-agent-" + $expectedAgentHash.Substring(0,12).ToLowerInvariant() + '.jar')
+$managedAgent = Join-Path $agentHome ("local-state-agent-" + $(if ($expectedAgentHash) { $expectedAgentHash.Substring(0,12).ToLowerInvariant() } else { 'restore' }) + '.jar')
 $statePath = Join-Path $managedHome 'install-state.json'
-$userOptions = Join-Path $env:APPDATA 'JetBrains\GoLand2026.3\goland64.exe.vmoptions'
+$userOptions = Join-Path $env:APPDATA ('JetBrains\' + $productProfile.ConfigFolder + '\' + $productProfile.Launcher + '.vmoptions')
 $backupOptions = Join-Path $managedHome 'original-user.vmoptions'
 $socketDir = Join-Path $env:SystemDrive 'jb-lab-sockets'
 $utf8 = [Text.UTF8Encoding]::new($false)
@@ -60,7 +69,7 @@ function Test-AgentLoad {
     $checkLog = Join-Path $managedHome 'agent-startup-check.log'
     $probe = New-Object System.Diagnostics.Process
     $probe.StartInfo.FileName = $javaExecutable
-    $probe.StartInfo.Arguments = '"-javaagent:' + $managedAgent + '" -version'
+    $probe.StartInfo.Arguments = '"-javaagent:' + $managedAgent + '=' + $profileId + '" -version'
     $probe.StartInfo.UseShellExecute = $false
     $probe.StartInfo.CreateNoWindow = $true
     $probe.StartInfo.RedirectStandardOutput = $true
@@ -115,6 +124,28 @@ namespace GoLandStateLab {
     } finally { $stream.Dispose() }
 }
 
+if ($Mode -ne 'Restore') {
+    $installedProductInfo = Get-Content -Raw -LiteralPath (Join-Path $ideHome 'product-info.json') | ConvertFrom-Json
+    if ($installedProductInfo.productCode -ne $productProfile.Code -or $installedProductInfo.buildNumber -ne $build) {
+        throw "Unsupported $Product build $($installedProductInfo.buildNumber). Expected $profileId. No configuration was changed."
+    }
+    $sourceAgent = Join-Path $repoRoot 'local-state-agent.jar'
+    if ((Get-FileHash -Algorithm SHA256 -LiteralPath $sourceAgent).Hash -ne $expectedAgentHash) {
+        throw 'Agent fingerprint does not match agent.sha256. No configuration was changed.'
+    }
+    & (Join-Path $ideHome 'jbr\bin\java.exe') -cp $sourceAgent AgentCompatibility $profileId $ideHome
+    if ($LASTEXITCODE -ne 0) { throw 'Original class compatibility check failed. No configuration was changed.' }
+    if ($Mode -eq 'Check') {
+        Write-Output "PASS: $Product build, source Agent and target classes checked. No settings changed."
+        $machineOptions = [Environment]::GetEnvironmentVariable($environmentName,'Machine')
+        if ($machineOptions -and !(Test-Path -LiteralPath $machineOptions)) {
+            Write-Output "NOTICE: Machine $environmentName points to a missing file: $machineOptions"
+            Write-Output 'Install sets a current-user override; the machine value is preserved.'
+        }
+        return
+    }
+}
+
 # Preserve the first installation's rollback metadata when moving away from
 # an AppData location. Do not replace it with the currently installed options.
 if (!(Test-Path -LiteralPath $statePath) -and
@@ -145,32 +176,26 @@ if ($Mode -eq 'Restore') {
     } elseif (Test-Path -LiteralPath $userOptions) {
         Remove-Item -LiteralPath $userOptions
     }
-    $currentUserEnvironment = [Environment]::GetEnvironmentVariable('GOLAND_VM_OPTIONS','User')
+    $currentUserEnvironment = [Environment]::GetEnvironmentVariable($environmentName,'User')
     if ($currentUserEnvironment -eq $managedOptions -or
-        $currentUserEnvironment -eq (Join-Path $legacyHome 'goland.vmoptions')) {
-        [Environment]::SetEnvironmentVariable('GOLAND_VM_OPTIONS', $state.originalUserEnvironment, 'User')
-        $env:GOLAND_VM_OPTIONS = $state.originalUserEnvironment
+        $currentUserEnvironment -eq (Join-Path $legacyHome $productProfile.OptionsName)) {
+        [Environment]::SetEnvironmentVariable($environmentName, $state.originalUserEnvironment, 'User')
+        [Environment]::SetEnvironmentVariable($environmentName, $state.originalUserEnvironment, 'Process')
     } else {
-        Write-Output 'GOLAND_VM_OPTIONS was changed elsewhere; that newer value was preserved.'
+        Write-Output "$environmentName was changed elsewhere; that newer value was preserved."
     }
     $state.installed = $false
     Save-State $state
     Notify-EnvironmentChange
-    Write-Output 'Original current-user GoLand configuration restored. Restart GoLand to apply.'
+    Write-Output "Original current-user $Product configuration restored. Restart $Product to apply."
     return
 }
 
-$product = Get-Content -Raw -LiteralPath (Join-Path $ideHome 'product-info.json') | ConvertFrom-Json
-if ($product.productCode -ne 'GO' -or $product.buildNumber -ne $build) { throw "Only GoLand GO-$build is supported." }
-$sourceAgent = Join-Path $repoRoot 'local-state-agent.jar'
-if ((Get-FileHash -Algorithm SHA256 -LiteralPath $sourceAgent).Hash -ne $expectedAgentHash) {
-    throw 'Agent file fingerprint is different from the verified version.'
-}
 [void](New-Item -ItemType Directory -Force -Path $managedHome)
 [void](New-Item -ItemType Directory -Force -Path $socketDir)
 [void](New-Item -ItemType Directory -Force -Path (Split-Path -Parent $userOptions))
 try { [void](New-Item -ItemType Directory -Force -Path $agentHome) }
-catch { throw "Cannot create '$agentHome'. The installer needs write access to the GoLand installation directory. Startup configuration was not updated. Original error: $($_.Exception.Message)" }
+catch { throw "Cannot create '$agentHome'. The installer needs write access to the IDE installation directory. Startup configuration was not updated. Original error: $($_.Exception.Message)" }
 
 $existingState = $null
 if (Test-Path -LiteralPath $statePath) {
@@ -184,7 +209,7 @@ if ($existingState -and $existingState.installed) {
         schemaVersion = 1
         build = $build
         installed = $false
-        originalUserEnvironment = [Environment]::GetEnvironmentVariable('GOLAND_VM_OPTIONS','User')
+        originalUserEnvironment = [Environment]::GetEnvironmentVariable($environmentName,'User')
         hadUserOptions = (Test-Path -LiteralPath $userOptions)
         userOptionsPath = $userOptions
         optionsHash = ''
@@ -196,10 +221,10 @@ if ($existingState -and $existingState.installed) {
 
 $baseline = $null
 foreach ($candidate in @(
-    [Environment]::GetEnvironmentVariable('GOLAND_VM_OPTIONS','User'),
-    [Environment]::GetEnvironmentVariable('GOLAND_VM_OPTIONS','Machine'),
+    [Environment]::GetEnvironmentVariable($environmentName,'User'),
+    [Environment]::GetEnvironmentVariable($environmentName,'Machine'),
     $userOptions,
-    (Join-Path $ideHome 'bin\goland64.exe.vmoptions')
+    (Join-Path $ideHome ('bin\' + $productProfile.Launcher + '.vmoptions'))
 )) {
     if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) { $baseline = $candidate; break }
 }
@@ -209,7 +234,7 @@ $options = @(Get-Content -LiteralPath $baseline | Where-Object {
     $_ -notmatch '^\s*--add-opens=java.base/jdk\.internal\.org\.objectweb\.asm(?:\.tree)?=ALL-UNNAMED\s*$' -and
     $_ -notmatch '^\s*-D(?:intellij\.startup\.wizard|jdk\.net\.unixdomain\.tmpdir|java\.io\.tmpdir)='
 })
-$options += "-javaagent:$managedAgent"
+$options += "-javaagent:$managedAgent=$profileId"
 $options += '-Dintellij.startup.wizard=false'
 $options += "-Djdk.net.unixdomain.tmpdir=$socketDir"
 $options += "-Djava.io.tmpdir=$socketDir"
@@ -217,7 +242,7 @@ $options += "-Djava.io.tmpdir=$socketDir"
 if (!(Test-Path -LiteralPath $managedAgent) -or
     (Get-FileHash -Algorithm SHA256 -LiteralPath $managedAgent).Hash -ne $expectedAgentHash) {
     try { Copy-Item -LiteralPath $sourceAgent -Destination $managedAgent -Force }
-    catch { throw "Cannot copy Agent to '$managedAgent'. Check installation-directory write access and close GoLand if the file is in use. Startup configuration was not updated. Original error: $($_.Exception.Message)" }
+    catch { throw "Cannot copy Agent to '$managedAgent'. Check installation-directory write access and close the IDE if the file is in use. Startup configuration was not updated. Original error: $($_.Exception.Message)" }
 }
 Assert-SharedFileLocation $managedAgent
 Test-AgentLoad
@@ -230,13 +255,13 @@ $state.optionsHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $userOptions).
 # Save rollback data before changing the persistent environment.
 $state.installed = $true
 Save-State $state
-[Environment]::SetEnvironmentVariable('GOLAND_VM_OPTIONS', $managedOptions, 'User')
-$env:GOLAND_VM_OPTIONS = $managedOptions
+[Environment]::SetEnvironmentVariable($environmentName, $managedOptions, 'User')
+[Environment]::SetEnvironmentVariable($environmentName, $managedOptions, 'Process')
 Notify-EnvironmentChange
-Write-Output "Configured GoLand GO-$build for direct EXE launch."
+Write-Output "Configured $Product $profileId for direct EXE launch."
 Write-Output "Agent: $managedAgent"
 Write-Output "User configuration and rollback records: $managedHome"
-Write-Output "Direct EXE: $(Join-Path $ideHome 'bin\goland64.exe')"
-Write-Output 'Close existing GoLand instances first. Then open the original EXE or shortcut.'
+Write-Output "Direct EXE: $(Join-Path $ideHome ('bin\' + $productProfile.Launcher))"
+Write-Output 'Close existing instances of the selected IDE first. Then open the original EXE or shortcut.'
 Write-Output 'Existing terminal/launcher processes may need restarting to receive the updated environment.'
 Write-Output 'This is build-specific local behavior, not a permanent or server-side subscription.'

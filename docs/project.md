@@ -1,11 +1,15 @@
 # 项目说明
 
-这是针对 Windows 版 GoLand 2026.3（构建号 `GO-263.7307.211`）的本地实验项目，范围包括 JVM 启动配置、授权状态观察及 Go 工具链验证。实验中使用的 Java Agent 会改变 IDE 运行时的授权判断。
+这是针对 Windows 版 GoLand `GO-263.7307.211` 和 PyCharm `PY-263.7307.351` 的本地实验项目，范围包括 JVM 启动配置、授权状态观察及工具链验证。实验中使用的 Java Agent 会改变 IDE 运行时的授权判断。产品适配范围和验证边界见[兼容性说明](compatibility.md)。
 
 | 路径 | 内容 |
 | --- | --- |
 | `src/` | Java 实验代码及验证工具。 |
-| `scripts/configure-exe.ps1` | GoLand 本地启动配置和恢复实现。 |
+| `scripts/configure-exe.ps1` | 按产品执行兼容性检查、用户配置安装及恢复。 |
+| `scripts/products.psd1` | 产品、构建、安装目录、环境变量及用户配置路径。 |
+| `scripts/*-pycharm.cmd`、`scripts/*-goland.cmd` | 对应产品的检查、安装、修复、恢复入口。 |
+| `scripts/build-agent.ps1` | 编译并验证多产品组件，生成本地 JAR 和配套 SHA-256。 |
+| `agent.sha256` | 当前构建组件的预期 SHA-256；安装前核对。 |
 | `scripts/restore-exe.cmd` | 恢复当前 Windows 用户的 GoLand 启动设置。 |
 | `README.txt` | 原有实验记录。 |
 

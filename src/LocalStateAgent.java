@@ -30,6 +30,13 @@ public final class LocalStateAgent {
             TARGET, "f104ffad427589c1f0a2274c22d9c11c93d5c9281f7d5d784a2f8225eab9c175");
 
     public static void premain(String options, Instrumentation instrumentation) {
+        if ("PY-263.7307.351".equals(options)) {
+            PyCharmStateAgent.premain(instrumentation);
+            return;
+        }
+        if (options != null && !options.isEmpty() && !"GO-263.7307.211".equals(options)) {
+            throw new IllegalArgumentException("Unsupported product profile: " + options);
+        }
         instrumentation.addTransformer(new Transformer());
         System.err.println("[local-state-lab] Armed for GoLand 263.7307.211 only; revision 5 (local expiry window state).");
     }
